@@ -299,6 +299,30 @@ export class RachioClient {
     });
   }
 
+  async updateZone(zoneId: string, settings: {
+    name?: string;
+    enabled?: boolean;
+    soil_type?: string;
+    crop_type?: string;
+    nozzle_type?: string;
+    exposure_type?: string;
+    slope_type?: string;
+  }): Promise<unknown> {
+    const body: Record<string, unknown> = { zone_id: zoneId };
+    if (settings.name !== undefined) body.name = settings.name;
+    if (settings.enabled !== undefined) body.enabled = settings.enabled;
+    if (settings.soil_type !== undefined) body.soil_type = { value: settings.soil_type };
+    if (settings.crop_type !== undefined) body.crop_type = { value: settings.crop_type };
+    if (settings.nozzle_type !== undefined) body.nozzle_type = { value: settings.nozzle_type };
+    if (settings.exposure_type !== undefined) body.exposure_type = { value: settings.exposure_type };
+    if (settings.slope_type !== undefined) body.slope_type = { value: settings.slope_type };
+    return this.request("/zone/updateBasicZone", {
+      method: "PUT",
+      body,
+      base: "cloud",
+    });
+  }
+
   async setDeviceStandby(deviceId: string, standby: boolean): Promise<unknown> {
     return this.request("/device/updateIrrigationController", {
       method: "PUT",

@@ -266,6 +266,47 @@ export function registerTools(server: McpServer, client: RachioClient) {
     }
   );
 
+  // ── Zone Settings (cloud-rest API) ──
+
+  server.tool(
+    "update_zone",
+    "Update zone settings: name, enabled state, soil type, crop type, nozzle type, sun exposure, and slope. Only include fields you want to change.",
+    {
+      zone_id: z.string().describe("Rachio zone ID"),
+      name: z.string().optional().describe("Zone name"),
+      enabled: z.boolean().optional().describe("Enable or disable the zone"),
+      soil_type: z.enum([
+        "CLAY", "CLAY_LOAM", "LOAM", "SANDY_LOAM", "SAND", "SILTY_LOAM",
+      ]).optional().describe("Soil type"),
+      crop_type: z.enum([
+        "COOL_SEASON_GRASS", "WARM_SEASON_GRASS", "FLOWER_BEDS", "SHRUBS",
+        "TREES", "XERISCAPE", "ANNUALS", "GROUND_COVER",
+      ]).optional().describe("Vegetation/crop type"),
+      nozzle_type: z.enum([
+        "FIXED_SPRAY_HEAD", "ROTOR_HEAD", "ROTARY_NOZZLE", "BUBBLER",
+        "DRIPLINE", "DRIP_EMITTER",
+      ]).optional().describe("Sprinkler nozzle type"),
+      exposure_type: z.enum([
+        "LOTS_OF_SUN", "SOME_SHADE", "LOTS_OF_SHADE",
+      ]).optional().describe("Sun exposure level"),
+      slope_type: z.enum([
+        "ZERO_THREE", "FOUR_SIX", "SEVEN_TWELVE", "THIRTEEN_PLUS",
+      ]).optional().describe("Ground slope percentage range"),
+      confirm: z.boolean().describe("Must be true to execute"),
+    },
+    async ({ zone_id, name, enabled, soil_type, crop_type, nozzle_type, exposure_type, slope_type, confirm }) => {
+      const changes = [name && "name", enabled !== undefined && "enabled", soil_type, crop_type, nozzle_type, exposure_type, slope_type].filter(Boolean);
+      const guard = confirmationGuard(
+        `update zone ${zone_id} (changing: ${changes.join(", ")})`,
+        confirm
+      );
+      if (guard) return guard;
+      return json(await client.updateZone(zone_id, {
+        name, enabled, soil_type, crop_type, nozzle_type, exposure_type, slope_type,
+      }));
+    }
+  );
+
   // ── Location/Weather Thresholds (cloud-rest API) ──
 
   server.tool(

@@ -1,4 +1,3 @@
-```markdown
 # Rachio MCP Server
 
 A Cloudflare Worker that exposes the [Rachio](https://rachio.com) irrigation API as an MCP (Model Context Protocol) server, enabling Claude to monitor and control your sprinkler system.

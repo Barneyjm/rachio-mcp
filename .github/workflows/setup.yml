@@ -45,7 +45,14 @@ jobs:
           echo "${{ secrets.RACHIO_MCP_URL_SECRET }}" | npx wrangler secret put URL_SECRET
 
       - name: Set CF Access secrets (optional)
-        if: ${{ inputs.set_secrets && secrets.CF_ACCESS_CLIENT_ID != '' }}
+        if: ${{ inputs.set_secrets }}
+        env:
+          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
         run: |
-          echo "${{ secrets.CF_ACCESS_CLIENT_ID }}" | npx wrangler secret put CF_ACCESS_CLIENT_ID
-          echo "${{ secrets.CF_ACCESS_CLIENT_SECRET }}" | npx wrangler secret put CF_ACCESS_CLIENT_SECRET
+          if [ -n "$CF_ACCESS_CLIENT_ID" ]; then
+            echo "$CF_ACCESS_CLIENT_ID" | npx wrangler secret put CF_ACCESS_CLIENT_ID
+            echo "$CF_ACCESS_CLIENT_SECRET" | npx wrangler secret put CF_ACCESS_CLIENT_SECRET
+          else
+            echo "CF_ACCESS_CLIENT_ID not set, skipping"
+          fi

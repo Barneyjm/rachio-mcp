@@ -275,9 +275,9 @@ export function registerTools(server: McpServer, client: RachioClient) {
       location_id: z.string().describe("Location ID (from device data)"),
       name: z.enum([
         "IRRIGATION_CONTROLLER_WIND",
-        "IRRIGATION_CONTROLLER_FREEZE",
+        "IRRIGATION_CONTROLLER_TEMPERATURE",
         "IRRIGATION_CONTROLLER_RAIN",
-      ]).describe("Threshold type: WIND (mph), FREEZE (°F), RAIN (inches)"),
+      ]).describe("Threshold type: WIND (mph), TEMPERATURE (°F freeze threshold), RAIN (inches)"),
       value: z.number().describe("Threshold value (e.g. 10 for 10 mph wind, 32 for 32°F freeze, 0.1 for 0.1\" rain)"),
       confirm: z.boolean().describe("Must be true to execute"),
     },

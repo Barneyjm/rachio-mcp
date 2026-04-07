@@ -335,6 +335,32 @@ export function registerTools(server: McpServer, client: RachioClient) {
     }
   );
 
+  server.tool(
+    "update_schedule",
+    "Update an existing schedule. Can modify name, zones, criteria, and enabled state. Uses the cloud-rest API.",
+    {
+      schedule_id: z.string().describe("ID of the schedule to update"),
+      name: z.string().describe("Schedule name"),
+      enabled: z.boolean().describe("Whether the schedule is active"),
+      schedule_criteria: scheduleCriteriaSchema,
+      zone_info: z.array(zoneInfoSchema).describe("Zones to add or update in the schedule"),
+      zone_ids_to_remove: z.array(z.string()).default([]).describe("Zone IDs to remove from the schedule"),
+      schedule_restriction_criteria: z.record(z.unknown()).default({}).describe("Optional watering restrictions"),
+      confirm: z.boolean().describe("Must be true to execute"),
+    },
+    async ({ schedule_id, name, enabled, schedule_criteria, zone_info, zone_ids_to_remove, schedule_restriction_criteria, confirm }) => {
+      const guard = confirmationGuard(`update schedule "${name}" (${schedule_id})`, confirm);
+      if (guard) return guard;
+      return json(await client.updateSchedule(schedule_id, {
+        name,
+        enabled,
+        schedule_criteria,
+        zone_info,
+        schedule_restriction_criteria,
+      }, zone_ids_to_remove));
+    }
+  );
+
   // ── Webhook Management ──
 
   server.tool(

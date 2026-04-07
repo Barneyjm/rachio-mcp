@@ -264,6 +264,26 @@ export class RachioClient {
     });
   }
 
+  async updateSchedule(
+    scheduleId: string,
+    payload: SchedulePayload & { enabled: boolean },
+    zonesToRemove?: string[]
+  ): Promise<unknown> {
+    return this.request("/schedule/updateSchedule", {
+      method: "PUT",
+      body: {
+        schedule_id: scheduleId,
+        schedule_criteria: payload.schedule_criteria,
+        name: payload.name,
+        enabled: payload.enabled,
+        zone_info_to_add_or_update: payload.zone_info,
+        zone_ids_to_remove: zonesToRemove || [],
+        schedule_restriction_criteria: payload.schedule_restriction_criteria,
+      },
+      base: "cloud",
+    });
+  }
+
   // ── Webhooks ──
 
   async createWebhook(deviceId: string, url: string, eventTypes: string[]): Promise<unknown> {

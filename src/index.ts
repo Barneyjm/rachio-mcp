@@ -5,6 +5,8 @@ import { registerTools } from "./tools.js";
 import { registerResources } from "./resources.js";
 import { registerPrompts } from "./prompts.js";
 
+export { RateLimiter } from "./rate-limiter.js";
+
 class RachioMcpAgent extends McpAgent<Env> {
   server = new McpServer({
     name: "rachio",
@@ -19,11 +21,14 @@ class RachioMcpAgent extends McpAgent<Env> {
   }
 }
 
-function timingSafeEqual(a: string, b: string): boolean {
-  if (a.length !== b.length) return false;
+async function timingSafeEqual(a: string, b: string): Promise<boolean> {
   const encoder = new TextEncoder();
-  const bufA = encoder.encode(a);
-  const bufB = encoder.encode(b);
+  const [digestA, digestB] = await Promise.all([
+    crypto.subtle.digest("SHA-256", encoder.encode(a)),
+    crypto.subtle.digest("SHA-256", encoder.encode(b)),
+  ]);
+  const bufA = new Uint8Array(digestA);
+  const bufB = new Uint8Array(digestB);
   let result = 0;
   for (let i = 0; i < bufA.length; i++) {
     result |= bufA[i] ^ bufB[i];
@@ -31,12 +36,12 @@ function timingSafeEqual(a: string, b: string): boolean {
   return result === 0;
 }
 
-function validateAuth(request: Request, env: Env): Response | null {
+async function validateAuth(request: Request, env: Env): Promise<Response | null> {
   const url = new URL(request.url);
 
   // Layer 1: URL secret validation
   const secret = url.searchParams.get("secret");
-  if (!secret || !timingSafeEqual(secret, env.URL_SECRET)) {
+  if (!secret || !(await timingSafeEqual(secret, env.URL_SECRET))) {
     return new Response("Unauthorized", { status: 401 });
   }
 
@@ -47,8 +52,8 @@ function validateAuth(request: Request, env: Env): Response | null {
     if (
       !clientId ||
       !clientSecret ||
-      !timingSafeEqual(clientId, env.CF_ACCESS_CLIENT_ID) ||
-      !timingSafeEqual(clientSecret, env.CF_ACCESS_CLIENT_SECRET)
+      !(await timingSafeEqual(clientId, env.CF_ACCESS_CLIENT_ID)) ||
+      !(await timingSafeEqual(clientSecret, env.CF_ACCESS_CLIENT_SECRET))
     ) {
       return new Response("Forbidden: invalid Cloudflare Access service token", { status: 403 });
     }
@@ -69,7 +74,7 @@ export default {
     }
 
     // Authenticate
-    const authError = validateAuth(request, env);
+    const authError = await validateAuth(request, env);
     if (authError) return authError;
 
     // MCP endpoint

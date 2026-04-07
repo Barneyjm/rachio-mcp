@@ -1,3 +1,5 @@
+import type { RateLimiter } from "./rate-limiter.js";
+
 export interface Env {
   RACHIO_API_KEY: string;
   RACHIO_API_BASE: string;
@@ -7,7 +9,7 @@ export interface Env {
   URL_SECRET: string;
   CF_ACCESS_CLIENT_ID?: string;
   CF_ACCESS_CLIENT_SECRET?: string;
-  RATE_LIMIT?: KVNamespace;
+  RATE_LIMITER?: DurableObjectNamespace<RateLimiter>;
 }
 
 interface RateLimitInfo {
@@ -32,37 +34,29 @@ export class RachioClient {
     return parseInt(this.env.MAX_ZONE_DURATION, 10) || 10800;
   }
 
-  private todayKey(): string {
-    const d = new Date();
-    return `rate:${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
+  private getRateLimiterStub(): DurableObjectStub<RateLimiter> | null {
+    if (!this.env.RATE_LIMITER) return null;
+    const id = this.env.RATE_LIMITER.idFromName("global");
+    return this.env.RATE_LIMITER.get(id);
   }
 
   async getRateLimitInfo(): Promise<RateLimitInfo> {
     const limit = this.maxDailyCalls;
-    if (!this.env.RATE_LIMIT) {
-      return { count: 0, limit, remaining: limit, resetAt: "unknown (KV not configured)" };
+    const stub = this.getRateLimiterStub();
+    if (!stub) {
+      return { count: 0, limit, remaining: limit, resetAt: "unknown (Durable Object not configured)" };
     }
-    const key = this.todayKey();
-    const val = await this.env.RATE_LIMIT.get(key);
-    const count = val ? parseInt(val, 10) : 0;
-    const tomorrow = new Date();
-    tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
-    tomorrow.setUTCHours(0, 0, 0, 0);
-    return { count, limit, remaining: limit - count, resetAt: tomorrow.toISOString() };
+    const info = await stub.getInfo(limit);
+    return { ...info, limit };
   }
 
-  private async incrementRateLimit(): Promise<void> {
-    if (!this.env.RATE_LIMIT) return;
-    const key = this.todayKey();
-    const val = await this.env.RATE_LIMIT.get(key);
-    const count = val ? parseInt(val, 10) : 0;
-    await this.env.RATE_LIMIT.put(key, String(count + 1), { expirationTtl: 172800 });
-  }
-
-  private async checkRateLimit(): Promise<void> {
-    const info = await this.getRateLimitInfo();
-    if (info.remaining <= 0) {
-      throw new Error(`Daily API rate limit reached (${info.limit} calls). Resets at ${info.resetAt}`);
+  private async consumeRateLimit(): Promise<void> {
+    const stub = this.getRateLimiterStub();
+    if (!stub) return;
+    const result = await stub.increment(this.maxDailyCalls);
+    if (!result.allowed) {
+      const info = await stub.getInfo(this.maxDailyCalls);
+      throw new Error(`Daily API rate limit reached (${this.maxDailyCalls} calls). Resets at ${info.resetAt}`);
     }
   }
 
@@ -70,7 +64,7 @@ export class RachioClient {
     path: string,
     options: { method?: string; body?: unknown; base?: "public" | "cloud" } = {}
   ): Promise<unknown> {
-    await this.checkRateLimit();
+    await this.consumeRateLimit();
 
     const base = options.base === "cloud" ? this.env.RACHIO_CLOUD_BASE : this.env.RACHIO_API_BASE;
     const url = `${base}${path}`;
@@ -86,7 +80,6 @@ export class RachioClient {
     }
 
     const res = await fetch(url, init);
-    await this.incrementRateLimit();
 
     if (!res.ok) {
       const text = await res.text();

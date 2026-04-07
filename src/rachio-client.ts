@@ -203,11 +203,11 @@ export class RachioClient {
     });
   }
 
-  async rainDelay(deviceId: string, durationDays: number): Promise<unknown> {
-    const days = Math.min(Math.max(durationDays, 1), 7);
-    return this.request("/public/device/rain_delay", {
-      method: "PUT",
-      body: { id: deviceId, duration: days * 86400 },
+  async rainDelay(deviceId: string, expiration: string): Promise<unknown> {
+    return this.request("/device/setRainDelay", {
+      method: "POST",
+      body: { device_id: deviceId, rain_delay_expiration: expiration },
+      base: "cloud",
     });
   }
 

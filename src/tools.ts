@@ -168,19 +168,23 @@ export function registerTools(server: McpServer, client: RachioClient) {
 
   server.tool(
     "rain_delay",
-    "Pause all watering for a specified number of days (1-7)",
+    "Set or cancel a rain delay. To set: provide a future ISO 8601 expiration timestamp. To cancel: provide a past timestamp or the current time.",
     {
       device_id: z.string().describe("Rachio device ID"),
-      duration_days: z.number().int().min(1).max(7).describe("Number of days to delay (1-7)"),
+      rain_delay_expiration: z.string().describe("ISO 8601 timestamp for when the delay expires (e.g. '2026-04-09T12:00:00.000Z'). Use a past time to cancel."),
       confirm: z.boolean().describe("Must be true to execute"),
     },
-    async ({ device_id, duration_days, confirm }) => {
+    async ({ device_id, rain_delay_expiration, confirm }) => {
+      const expDate = new Date(rain_delay_expiration);
+      const isCanceling = expDate <= new Date();
       const guard = confirmationGuard(
-        `set a ${duration_days}-day rain delay on device ${device_id}`,
+        isCanceling
+          ? `cancel rain delay on device ${device_id}`
+          : `set rain delay on device ${device_id} until ${rain_delay_expiration}`,
         confirm
       );
       if (guard) return guard;
-      return json(await client.rainDelay(device_id, duration_days));
+      return json(await client.rainDelay(device_id, rain_delay_expiration));
     }
   );
 

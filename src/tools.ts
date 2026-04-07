@@ -275,23 +275,11 @@ export function registerTools(server: McpServer, client: RachioClient) {
       zone_id: z.string().describe("Rachio zone ID"),
       name: z.string().optional().describe("Zone name"),
       enabled: z.boolean().optional().describe("Enable or disable the zone"),
-      soil_type: z.enum([
-        "CLAY", "CLAY_LOAM", "LOAM", "SANDY_LOAM", "SAND", "SILTY_LOAM",
-      ]).optional().describe("Soil type"),
-      crop_type: z.enum([
-        "COOL_SEASON_GRASS", "WARM_SEASON_GRASS", "FLOWER_BEDS", "SHRUBS",
-        "TREES", "XERISCAPE", "ANNUALS", "GROUND_COVER",
-      ]).optional().describe("Vegetation/crop type"),
-      nozzle_type: z.enum([
-        "FIXED_SPRAY_HEAD", "ROTOR_HEAD", "ROTARY_NOZZLE", "BUBBLER",
-        "DRIPLINE", "DRIP_EMITTER",
-      ]).optional().describe("Sprinkler nozzle type"),
-      exposure_type: z.enum([
-        "LOTS_OF_SUN", "SOME_SHADE", "LOTS_OF_SHADE",
-      ]).optional().describe("Sun exposure level"),
-      slope_type: z.enum([
-        "ZERO_THREE", "FOUR_SIX", "SEVEN_TWELVE", "THIRTEEN_PLUS",
-      ]).optional().describe("Ground slope percentage range"),
+      soil_type: z.string().optional().describe("Soil type (known values: CLAY, CLAY_LOAM, LOAM, SANDY_LOAM, SAND, SILTY_LOAM)"),
+      crop_type: z.string().optional().describe("Vegetation/crop type (known values: COOL_SEASON_GRASS, WARM_SEASON_GRASS, FLOWER_BEDS, SHRUBS, TREES, XERISCAPE, ANNUALS, GROUND_COVER)"),
+      nozzle_type: z.string().optional().describe("Sprinkler nozzle type (known values: FIXED_SPRAY_HEAD, ROTOR_HEAD, ROTARY_NOZZLE, BUBBLER, DRIPLINE, DRIP_EMITTER)"),
+      exposure_type: z.string().optional().describe("Sun exposure (known values: LOTS_OF_SUN, SOME_SHADE, LOTS_OF_SHADE)"),
+      slope_type: z.string().optional().describe("Ground slope (known values: ZERO_THREE, FOUR_SIX, SEVEN_TWELVE, THIRTEEN_PLUS)"),
       confirm: z.boolean().describe("Must be true to execute"),
     },
     async ({ zone_id, name, enabled, soil_type, crop_type, nozzle_type, exposure_type, slope_type, confirm }) => {
@@ -314,11 +302,7 @@ export function registerTools(server: McpServer, client: RachioClient) {
     "Update a weather threshold for skip conditions (wind speed, freeze temp, rain amount). Requires a location_id which can be found via get_device.",
     {
       location_id: z.string().describe("Location ID (from device data)"),
-      name: z.enum([
-        "IRRIGATION_CONTROLLER_WIND",
-        "IRRIGATION_CONTROLLER_TEMPERATURE",
-        "IRRIGATION_CONTROLLER_PRECIPITATION",
-      ]).describe("Threshold type: WIND (mph), TEMPERATURE (°F freeze threshold), PRECIPITATION (inches)"),
+      name: z.string().describe("Threshold type (known values: IRRIGATION_CONTROLLER_WIND (mph), IRRIGATION_CONTROLLER_TEMPERATURE (°F), IRRIGATION_CONTROLLER_PRECIPITATION (inches))"),
       value: z.number().describe("Threshold value (e.g. 10 for 10 mph wind, 32 for 32°F freeze, 0.1 for 0.1\" rain)"),
       confirm: z.boolean().describe("Must be true to execute"),
     },

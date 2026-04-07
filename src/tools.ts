@@ -266,6 +266,28 @@ export function registerTools(server: McpServer, client: RachioClient) {
     }
   );
 
+  // ── Location/Weather Thresholds (cloud-rest API) ──
+
+  server.tool(
+    "update_location_threshold",
+    "Update a weather threshold for skip conditions (wind speed, freeze temp, rain amount). Requires a location_id which can be found via get_device.",
+    {
+      location_id: z.string().describe("Location ID (from device data)"),
+      name: z.enum([
+        "IRRIGATION_CONTROLLER_WIND",
+        "IRRIGATION_CONTROLLER_FREEZE",
+        "IRRIGATION_CONTROLLER_RAIN",
+      ]).describe("Threshold type: WIND (mph), FREEZE (°F), RAIN (inches)"),
+      value: z.number().describe("Threshold value (e.g. 10 for 10 mph wind, 32 for 32°F freeze, 0.1 for 0.1\" rain)"),
+      confirm: z.boolean().describe("Must be true to execute"),
+    },
+    async ({ location_id, name, value, confirm }) => {
+      const guard = confirmationGuard(`set ${name} threshold to ${value} for location ${location_id}`, confirm);
+      if (guard) return guard;
+      return json(await client.updateLocationThreshold(location_id, name, value));
+    }
+  );
+
   // ── Device Control (cloud-rest API) ──
 
   server.tool(

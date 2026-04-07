@@ -284,6 +284,21 @@ export class RachioClient {
     });
   }
 
+  async updateLocationThreshold(
+    locationId: string,
+    name: string,
+    value: number
+  ): Promise<unknown> {
+    return this.request("/location/updateLocationThreshold", {
+      method: "POST",
+      body: {
+        location_id: locationId,
+        location_threshold: { name, value },
+      },
+      base: "cloud",
+    });
+  }
+
   async setDeviceStandby(deviceId: string, standby: boolean): Promise<unknown> {
     return this.request("/device/updateIrrigationController", {
       method: "PUT",

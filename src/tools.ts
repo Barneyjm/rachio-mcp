@@ -361,6 +361,20 @@ export function registerTools(server: McpServer, client: RachioClient) {
     }
   );
 
+  server.tool(
+    "delete_schedule",
+    "Delete a schedule permanently. Uses the cloud-rest API.",
+    {
+      schedule_id: z.string().describe("ID of the schedule to delete"),
+      confirm: z.boolean().describe("Must be true to execute"),
+    },
+    async ({ schedule_id, confirm }) => {
+      const guard = confirmationGuard(`permanently delete schedule ${schedule_id}`, confirm);
+      if (guard) return guard;
+      return json(await client.deleteSchedule(schedule_id));
+    }
+  );
+
   // ── Webhook Management ──
 
   server.tool(

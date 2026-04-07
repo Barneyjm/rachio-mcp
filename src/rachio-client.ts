@@ -284,6 +284,13 @@ export class RachioClient {
     });
   }
 
+  async deleteSchedule(scheduleId: string): Promise<unknown> {
+    return this.request(`/schedule/deleteSchedule/${scheduleId}`, {
+      method: "DELETE",
+      base: "cloud",
+    });
+  }
+
   // ── Webhooks ──
 
   async createWebhook(deviceId: string, url: string, eventTypes: string[]): Promise<unknown> {

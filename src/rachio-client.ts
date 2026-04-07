@@ -201,6 +201,20 @@ export class RachioClient {
     });
   }
 
+  async seasonalAdjustment(scheduleId: string, adjustment: number): Promise<unknown> {
+    return this.request("/public/schedulerule/seasonal_adjustment", {
+      method: "PUT",
+      body: { id: scheduleId, adjustment },
+    });
+  }
+
+  async skipForwardZoneRun(scheduleId: string): Promise<unknown> {
+    return this.request("/public/schedulerule/skip_forward_zone_run", {
+      method: "PUT",
+      body: { id: scheduleId },
+    });
+  }
+
   // ── Webhooks ──
 
   async createWebhook(deviceId: string, url: string, eventTypes: string[]): Promise<unknown> {

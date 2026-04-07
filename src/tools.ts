@@ -230,6 +230,38 @@ export function registerTools(server: McpServer, client: RachioClient) {
     }
   );
 
+  server.tool(
+    "seasonal_adjustment",
+    "Adjust the seasonal watering percentage for a schedule (e.g. 0.8 = 80% of normal runtime)",
+    {
+      schedule_id: z.string().describe("Rachio schedule ID"),
+      adjustment: z.number().min(0).max(2).describe("Seasonal adjustment multiplier (0.0-2.0, where 1.0 = 100% normal)"),
+      confirm: z.boolean().describe("Must be true to execute"),
+    },
+    async ({ schedule_id, adjustment, confirm }) => {
+      const guard = confirmationGuard(
+        `set seasonal adjustment to ${(adjustment * 100).toFixed(0)}% on schedule ${schedule_id}`,
+        confirm
+      );
+      if (guard) return guard;
+      return json(await client.seasonalAdjustment(schedule_id, adjustment));
+    }
+  );
+
+  server.tool(
+    "skip_forward_zone_run",
+    "Skip the currently running zone and advance to the next zone in the schedule",
+    {
+      schedule_id: z.string().describe("Rachio schedule ID"),
+      confirm: z.boolean().describe("Must be true to execute"),
+    },
+    async ({ schedule_id, confirm }) => {
+      const guard = confirmationGuard(`skip forward to next zone in schedule ${schedule_id}`, confirm);
+      if (guard) return guard;
+      return json(await client.skipForwardZoneRun(schedule_id));
+    }
+  );
+
   // ── Webhook Management ──
 
   server.tool(

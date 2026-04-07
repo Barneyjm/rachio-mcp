@@ -1,5 +1,5 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { McpAgent } from "agents/mcp";
+import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { RachioClient, type Env } from "./rachio-client.js";
 import { registerTools } from "./tools.js";
 import { registerResources } from "./resources.js";
@@ -7,18 +7,13 @@ import { registerPrompts } from "./prompts.js";
 
 export { RateLimiter } from "./rate-limiter.js";
 
-class RachioMcpAgent extends McpAgent<Env> {
-  server = new McpServer({
-    name: "rachio",
-    version: "1.0.0",
-  });
-
-  async init() {
-    const client = new RachioClient(this.env);
-    registerTools(this.server, client);
-    registerResources(this.server, client);
-    registerPrompts(this.server);
-  }
+function createServer(env: Env): McpServer {
+  const server = new McpServer({ name: "rachio", version: "1.0.0" });
+  const client = new RachioClient(env);
+  registerTools(server, client);
+  registerResources(server, client);
+  registerPrompts(server);
+  return server;
 }
 
 async function timingSafeEqual(a: string, b: string): Promise<boolean> {
@@ -79,7 +74,10 @@ export default {
 
     // MCP endpoint
     if (url.pathname === "/mcp") {
-      return RachioMcpAgent.mount("/mcp").fetch(request, env, ctx);
+      const server = createServer(env);
+      const transport = new WebStandardStreamableHTTPServerTransport({});
+      await server.connect(transport);
+      return transport.handleRequest(request);
     }
 
     return new Response("Not Found", { status: 404 });

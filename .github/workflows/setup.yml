@@ -41,8 +41,8 @@ jobs:
       - name: Set worker secrets
         if: ${{ inputs.set_secrets }}
         run: |
-          echo "${{ secrets.RACHIO_API_KEY }}" | npx wrangler secret put RACHIO_API_KEY
-          echo "${{ secrets.RACHIO_MCP_URL_SECRET }}" | npx wrangler secret put URL_SECRET
+          printf '%s' "${{ secrets.RACHIO_API_KEY }}" | npx wrangler secret put RACHIO_API_KEY
+          printf '%s' "${{ secrets.RACHIO_MCP_URL_SECRET }}" | npx wrangler secret put URL_SECRET
 
       - name: Set CF Access secrets (optional)
         if: ${{ inputs.set_secrets }}
@@ -51,8 +51,8 @@ jobs:
           CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
         run: |
           if [ -n "$CF_ACCESS_CLIENT_ID" ]; then
-            echo "$CF_ACCESS_CLIENT_ID" | npx wrangler secret put CF_ACCESS_CLIENT_ID
-            echo "$CF_ACCESS_CLIENT_SECRET" | npx wrangler secret put CF_ACCESS_CLIENT_SECRET
+            printf '%s' "$CF_ACCESS_CLIENT_ID" | npx wrangler secret put CF_ACCESS_CLIENT_ID
+            printf '%s' "$CF_ACCESS_CLIENT_SECRET" | npx wrangler secret put CF_ACCESS_CLIENT_SECRET
           else
             echo "CF_ACCESS_CLIENT_ID not set, skipping"
           fi

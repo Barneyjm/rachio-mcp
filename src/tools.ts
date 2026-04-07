@@ -262,6 +262,79 @@ export function registerTools(server: McpServer, client: RachioClient) {
     }
   );
 
+  // ── Schedule Creation (cloud-rest API) ──
+
+  const scheduleCriteriaSchema = z.object({
+    schedule_type: z.enum(["FLEX_DAILY", "FIXED", "INTERVAL"]).describe("Schedule type"),
+    rain_delay_enabled: z.boolean().default(false),
+    freeze_delay_enabled: z.boolean().default(true),
+    wind_delay_enabled: z.boolean().default(true),
+    climate_skip: z.boolean().default(false),
+    seasonal_shift: z.boolean().default(false),
+    start_date: z.object({
+      year: z.number().int(),
+      month: z.number().int().min(1).max(12),
+      day: z.number().int().min(1).max(31),
+    }).describe("Schedule start date"),
+    start_sun_time: z.enum(["SUNRISE", "SUNSET"]).optional().describe("Start relative to sun (use this OR start_time)"),
+    start_time: z.number().int().optional().describe("Start time in minutes from midnight (use this OR start_sun_time)"),
+    cycle_soak: z.boolean().default(false),
+    smart_cycle: z.boolean().default(true),
+    zone_delay_time: z.number().int().default(0).describe("Delay between zones in seconds"),
+  });
+
+  const zoneInfoSchema = z.object({
+    device_id: z.string().describe("Rachio device ID"),
+    zone_id: z.string().describe("Rachio zone ID"),
+    order_id: z.number().int().describe("Zone order in sequence (0-based)"),
+    watering_time: z.number().int().min(0).describe("Watering duration in seconds (0 for flex auto-calculation)"),
+    flex_aggression_coefficient: z.number().default(1).describe("Flex aggression multiplier (1.0 = normal)"),
+    flex_runtime_coefficient: z.number().default(1).describe("Flex runtime multiplier (1.0 = normal)"),
+  });
+
+  server.tool(
+    "preview_schedule",
+    "Preview what a schedule would look like before creating it. Returns projected run times and water usage. Uses the cloud-rest API.",
+    {
+      name: z.string().describe("Schedule name"),
+      schedule_criteria: scheduleCriteriaSchema,
+      zone_info: z.array(zoneInfoSchema).describe("Zones to include in the schedule"),
+      schedule_restriction_criteria: z.record(z.unknown()).default({}).describe("Optional watering restrictions"),
+    },
+    async ({ name, schedule_criteria, zone_info, schedule_restriction_criteria }) => {
+      return json(await client.previewSchedule({
+        name,
+        schedule_criteria,
+        zone_info,
+        schedule_restriction_criteria,
+      }));
+    }
+  );
+
+  server.tool(
+    "create_schedule",
+    "Create a new watering schedule. Use preview_schedule first to verify settings. Uses the cloud-rest API (undocumented, reverse-engineered from app).",
+    {
+      name: z.string().describe("Schedule name"),
+      enabled: z.boolean().describe("Whether the schedule is active"),
+      schedule_criteria: scheduleCriteriaSchema,
+      zone_info: z.array(zoneInfoSchema).describe("Zones to include in the schedule"),
+      schedule_restriction_criteria: z.record(z.unknown()).default({}).describe("Optional watering restrictions"),
+      confirm: z.boolean().describe("Must be true to execute"),
+    },
+    async ({ name, enabled, schedule_criteria, zone_info, schedule_restriction_criteria, confirm }) => {
+      const guard = confirmationGuard(`create schedule "${name}" with ${zone_info.length} zones`, confirm);
+      if (guard) return guard;
+      return json(await client.createSchedule({
+        name,
+        enabled,
+        schedule_criteria,
+        zone_info,
+        schedule_restriction_criteria,
+      }));
+    }
+  );
+
   // ── Webhook Management ──
 
   server.tool(

@@ -12,6 +12,37 @@ export interface Env {
   RATE_LIMITER?: DurableObjectNamespace<RateLimiter>;
 }
 
+export interface ScheduleZoneInfo {
+  device_id: string;
+  zone_id: string;
+  order_id: number;
+  watering_time: number;
+  flex_aggression_coefficient: number;
+  flex_runtime_coefficient: number;
+}
+
+export interface ScheduleCriteria {
+  schedule_type: "FLEX_DAILY" | "FIXED" | "INTERVAL";
+  rain_delay_enabled: boolean;
+  freeze_delay_enabled: boolean;
+  wind_delay_enabled: boolean;
+  climate_skip: boolean;
+  seasonal_shift: boolean;
+  start_date: { year: number; month: number; day: number };
+  start_sun_time?: "SUNRISE" | "SUNSET";
+  start_time?: number;
+  cycle_soak: boolean;
+  smart_cycle: boolean;
+  zone_delay_time: number;
+}
+
+export interface SchedulePayload {
+  schedule_criteria: ScheduleCriteria;
+  name: string;
+  zone_info: ScheduleZoneInfo[];
+  schedule_restriction_criteria: Record<string, unknown>;
+}
+
 interface RateLimitInfo {
   count: number;
   limit: number;
@@ -212,6 +243,24 @@ export class RachioClient {
     return this.request("/public/schedulerule/skip_forward_zone_run", {
       method: "PUT",
       body: { id: scheduleId },
+    });
+  }
+
+  // ── Schedule Management (cloud-rest API) ──
+
+  async previewSchedule(payload: SchedulePayload): Promise<unknown> {
+    return this.request("/schedule/previewSchedule", {
+      method: "POST",
+      body: payload,
+      base: "cloud",
+    });
+  }
+
+  async createSchedule(payload: SchedulePayload & { enabled: boolean }): Promise<unknown> {
+    return this.request("/schedule/createSchedule", {
+      method: "POST",
+      body: payload,
+      base: "cloud",
     });
   }
 

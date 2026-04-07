@@ -1,14 +1,15 @@
+```markdown
 # Rachio MCP Server
 
 A Cloudflare Worker that exposes the [Rachio](https://rachio.com) irrigation API as an MCP (Model Context Protocol) server, enabling Claude to monitor and control your sprinkler system.
 
 ## Features
 
-- **20 MCP tools** — read-only queries and confirmed write actions for zones, schedules, weather, and more
+- **31 MCP tools** — read-only queries, confirmed write actions, schedule CRUD, zone config, weather thresholds
 - **4 MCP resources** — device status, zones, schedules, and forecast as context-loadable resources
 - **2 MCP prompts** — irrigation status summary and zone health check templates
-- **Defense-in-depth auth** — URL secret (Layer 1) + Cloudflare Access service token (Layer 2)
-- **Rate limiting** — tracks daily Rachio API budget via KV to stay under the 1,700/day cap
+- **Defense-in-depth auth** — URL secret (Layer 1) + optional Cloudflare Access service token (Layer 2)
+- **Rate limiting** — tracks daily Rachio API budget via Durable Object to stay under the 1,700/day cap
 - **Safety controls** — write tools require explicit `confirm: true`; zone durations capped at 3 hours
 
 ## Setup
@@ -22,7 +23,7 @@ A Cloudflare Worker that exposes the [Rachio](https://rachio.com) irrigation API
 
 | Secret | Description |
 |--------|-------------|
-| `CLOUDFLARE_API_TOKEN` | Cloudflare API token with Workers permissions |
+| `CLOUDFLARE_API_TOKEN` | Cloudflare API token with Workers + Durable Objects permissions |
 | `CLOUDFLARE_ACCOUNT_ID` | Your Cloudflare account ID |
 | `RACHIO_API_KEY` | Rachio API bearer token |
 | `RACHIO_MCP_URL_SECRET` | 64-char hex string (`openssl rand -hex 32`) |
@@ -32,23 +33,21 @@ A Cloudflare Worker that exposes the [Rachio](https://rachio.com) irrigation API
 ### 2. Run the Setup workflow
 
 Go to **Actions > Setup Infrastructure > Run workflow**. This will:
-- Create the `RATE_LIMIT` KV namespace
+- Create the `RATE_LIMIT` KV namespace (legacy, now uses Durable Objects)
 - Push all secrets to the Cloudflare Worker
-
-After it runs, copy the KV namespace ID from the workflow logs into `wrangler.toml` and uncomment the `[[kv_namespaces]]` block.
 
 ### 3. Deploy
 
-Push to `main` — the **Deploy** workflow runs automatically (typecheck + `wrangler deploy`).
+Push to `main` — the **Deploy** workflow runs automatically (typecheck + tests + `wrangler deploy`).
 
-Or run manually:
+Or deploy manually:
 
 ```bash
 npm install
 npm run deploy
 ```
 
-### 5. Connect to Claude
+### 4. Connect to Claude
 
 Add as an MCP connector in Claude.ai:
 
@@ -64,7 +63,7 @@ If using Cloudflare Access (Layer 2), configure your MCP client to send `CF-Acce
 
 | Tool | Description |
 |------|-------------|
-| `get_person` | User profile and device IDs |
+| `get_person` | User profile and device IDs (call first) |
 | `get_device` | Full device details with zones and schedules |
 | `get_device_state` | Current watering status |
 | `get_zone` | Zone configuration details |
@@ -74,6 +73,8 @@ If using Cloudflare Access (Layer 2), configure your MCP client to send `CF-Acce
 | `get_forecast` | Weather forecast for device location |
 | `get_events` | Event history within a time range |
 | `get_webhooks` | Registered webhooks |
+| `get_watering_summary` | Zone watering history over a date range |
+| `get_watering_summary_by_interval` | Device-level usage trends over time |
 
 ### Write (confirmation required)
 
@@ -82,16 +83,39 @@ If using Cloudflare Access (Layer 2), configure your MCP client to send `CF-Acce
 | `start_zone` | Start watering a zone (max 3hr) |
 | `start_multiple_zones` | Start multiple zones in sequence |
 | `stop_water` | Stop all watering immediately |
-| `rain_delay` | Pause watering for 1-7 days |
+| `rain_delay` | Set or cancel a rain delay (precise timestamp) |
 | `set_moisture_percent` | Override zone moisture level |
 | `skip_schedule` | Skip next schedule run |
 | `start_schedule` | Manually start a schedule |
+| `seasonal_adjustment` | Adjust seasonal watering percentage |
+| `skip_forward_zone_run` | Skip current zone, advance to next |
+| `set_device_standby` | Toggle device standby mode on/off |
+| `update_zone` | Edit zone settings (soil, nozzle, slope, shade, etc.) |
+| `update_location_threshold` | Set weather skip thresholds (wind, temp, precipitation) |
+
+### Schedule CRUD (cloud-rest API)
+
+| Tool | Description |
+|------|-------------|
+| `preview_schedule` | Preview a schedule before creating |
+| `create_schedule` | Create a new schedule |
+| `update_schedule` | Update an existing schedule |
+| `delete_schedule` | Delete a schedule permanently |
+
+### Webhook Management
+
+| Tool | Description |
+|------|-------------|
 | `create_webhook` | Register a webhook |
 | `delete_webhook` | Remove a webhook |
 
 ## Development
 
 ```bash
+npm install        # install dependencies
 npm run dev        # local dev server
 npm run typecheck  # type checking
+npm test           # run tests
+npm run deploy     # deploy to Cloudflare
+```
 ```

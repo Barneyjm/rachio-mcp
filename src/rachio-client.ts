@@ -366,7 +366,7 @@ export class RachioClient {
   }
 
   async deleteSchedule(scheduleId: string): Promise<unknown> {
-    return this.request(`/schedule/deleteSchedule/${scheduleId}`, {
+    return this.request(`/schedule/deleteSchedule/${encodeURIComponent(scheduleId)}`, {
       method: "DELETE",
       base: "cloud",
     });
@@ -387,7 +387,7 @@ export class RachioClient {
   }
 
   async deleteWebhook(webhookId: string): Promise<unknown> {
-    return this.request(`/public/notification/webhook/${webhookId}`, {
+    return this.request(`/public/notification/webhook/${encodeURIComponent(webhookId)}`, {
       method: "DELETE",
     });
   }

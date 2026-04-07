@@ -283,7 +283,7 @@ export function registerTools(server: McpServer, client: RachioClient) {
       confirm: z.boolean().describe("Must be true to execute"),
     },
     async ({ zone_id, name, enabled, soil_type, crop_type, nozzle_type, exposure_type, slope_type, confirm }) => {
-      const changes = [name && "name", enabled !== undefined && "enabled", soil_type, crop_type, nozzle_type, exposure_type, slope_type].filter(Boolean);
+      const changes = [name && "name", enabled !== undefined && "enabled", soil_type && "soil_type", crop_type && "crop_type", nozzle_type && "nozzle_type", exposure_type && "exposure_type", slope_type && "slope_type"].filter(Boolean);
       const guard = confirmationGuard(
         `update zone ${zone_id} (changing: ${changes.join(", ")})`,
         confirm

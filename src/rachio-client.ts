@@ -103,7 +103,8 @@ export class RachioClient {
   // ── Read-Only ──
 
   async getPerson(): Promise<unknown> {
-    return this.request("/public/person/info");
+    const info = (await this.request("/public/person/info")) as { id: string };
+    return this.request(`/public/person/${info.id}`);
   }
 
   async getDevice(deviceId: string): Promise<unknown> {

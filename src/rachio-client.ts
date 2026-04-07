@@ -189,7 +189,7 @@ export class RachioClient {
   async setMoisturePercent(zoneId: string, percent: number): Promise<unknown> {
     return this.request("/public/zone/setMoisturePercent", {
       method: "PUT",
-      body: { id: zoneId, moisture: percent },
+      body: { id: zoneId, percent: Math.round(percent * 100) },
     });
   }
 

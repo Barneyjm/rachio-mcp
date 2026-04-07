@@ -12,6 +12,37 @@ export interface Env {
   RATE_LIMITER?: DurableObjectNamespace<RateLimiter>;
 }
 
+export interface ScheduleZoneInfo {
+  device_id: string;
+  zone_id: string;
+  order_id: number;
+  watering_time: number;
+  flex_aggression_coefficient: number;
+  flex_runtime_coefficient: number;
+}
+
+export interface ScheduleCriteria {
+  schedule_type: "FLEX_DAILY" | "FIXED" | "INTERVAL";
+  rain_delay_enabled: boolean;
+  freeze_delay_enabled: boolean;
+  wind_delay_enabled: boolean;
+  climate_skip: boolean;
+  seasonal_shift: boolean;
+  start_date: { year: number; month: number; day: number };
+  start_sun_time?: "SUNRISE" | "SUNSET";
+  start_time?: number;
+  cycle_soak: boolean;
+  smart_cycle: boolean;
+  zone_delay_time: number;
+}
+
+export interface SchedulePayload {
+  schedule_criteria: ScheduleCriteria;
+  name: string;
+  zone_info: ScheduleZoneInfo[];
+  schedule_restriction_criteria: Record<string, unknown>;
+}
+
 interface RateLimitInfo {
   count: number;
   limit: number;
@@ -172,11 +203,11 @@ export class RachioClient {
     });
   }
 
-  async rainDelay(deviceId: string, durationDays: number): Promise<unknown> {
-    const days = Math.min(Math.max(durationDays, 1), 7);
-    return this.request("/public/device/rain_delay", {
-      method: "PUT",
-      body: { id: deviceId, duration: days * 86400 },
+  async rainDelay(deviceId: string, expiration: string): Promise<unknown> {
+    return this.request("/device/setRainDelay", {
+      method: "POST",
+      body: { device_id: deviceId, rain_delay_expiration: expiration },
+      base: "cloud",
     });
   }
 
@@ -201,6 +232,146 @@ export class RachioClient {
     });
   }
 
+  async seasonalAdjustment(scheduleId: string, adjustment: number): Promise<unknown> {
+    return this.request("/public/schedulerule/seasonal_adjustment", {
+      method: "PUT",
+      body: { id: scheduleId, adjustment },
+    });
+  }
+
+  async skipForwardZoneRun(scheduleId: string): Promise<unknown> {
+    return this.request("/public/schedulerule/skip_forward_zone_run", {
+      method: "PUT",
+      body: { id: scheduleId },
+    });
+  }
+
+  // ── Schedule Management (cloud-rest API) ──
+
+  async previewSchedule(payload: SchedulePayload): Promise<unknown> {
+    return this.request("/schedule/previewSchedule", {
+      method: "POST",
+      body: payload,
+      base: "cloud",
+    });
+  }
+
+  async createSchedule(payload: SchedulePayload & { enabled: boolean }): Promise<unknown> {
+    return this.request("/schedule/createSchedule", {
+      method: "POST",
+      body: payload,
+      base: "cloud",
+    });
+  }
+
+  async updateSchedule(
+    scheduleId: string,
+    payload: SchedulePayload & { enabled: boolean },
+    zonesToRemove?: string[]
+  ): Promise<unknown> {
+    return this.request("/schedule/updateSchedule", {
+      method: "PUT",
+      body: {
+        schedule_id: scheduleId,
+        schedule_criteria: payload.schedule_criteria,
+        name: payload.name,
+        enabled: payload.enabled,
+        zone_info_to_add_or_update: payload.zone_info,
+        zone_ids_to_remove: zonesToRemove || [],
+        schedule_restriction_criteria: payload.schedule_restriction_criteria,
+      },
+      base: "cloud",
+    });
+  }
+
+  async updateLocationThreshold(
+    locationId: string,
+    name: string,
+    value: number
+  ): Promise<unknown> {
+    return this.request("/location/updateLocationThreshold", {
+      method: "POST",
+      body: {
+        location_id: locationId,
+        location_threshold: { name, value },
+      },
+      base: "cloud",
+    });
+  }
+
+  async updateZone(zoneId: string, settings: {
+    name?: string;
+    enabled?: boolean;
+    soil_type?: string;
+    crop_type?: string;
+    nozzle_type?: string;
+    exposure_type?: string;
+    slope_type?: string;
+  }): Promise<unknown> {
+    const body: Record<string, unknown> = { zone_id: zoneId };
+    if (settings.name !== undefined) body.name = settings.name;
+    if (settings.enabled !== undefined) body.enabled = settings.enabled;
+    if (settings.soil_type !== undefined) body.soil_type = { value: settings.soil_type };
+    if (settings.crop_type !== undefined) body.crop_type = { value: settings.crop_type };
+    if (settings.nozzle_type !== undefined) body.nozzle_type = { value: settings.nozzle_type };
+    if (settings.exposure_type !== undefined) body.exposure_type = { value: settings.exposure_type };
+    if (settings.slope_type !== undefined) body.slope_type = { value: settings.slope_type };
+    return this.request("/zone/updateBasicZone", {
+      method: "PUT",
+      body,
+      base: "cloud",
+    });
+  }
+
+  async setDeviceStandby(deviceId: string, standby: boolean): Promise<unknown> {
+    return this.request("/device/updateIrrigationController", {
+      method: "PUT",
+      body: { id: deviceId, standby },
+      base: "cloud",
+    });
+  }
+
+  async getWateringSummary(
+    deviceId: string,
+    zoneId: string,
+    startDate: { year: number; month: number; day: number },
+    endDate: { year: number; month: number; day: number }
+  ): Promise<unknown> {
+    return this.request("/events/getWateringSummaryForZone", {
+      method: "PUT",
+      body: {
+        device_id: deviceId,
+        zone_id: zoneId,
+        start_date: startDate,
+        end_date: endDate,
+      },
+      base: "cloud",
+    });
+  }
+
+  async getWateringSummaryByInterval(
+    deviceId: string,
+    startDate: { year: number; month: number; day: number },
+    endDate: { year: number; month: number; day: number }
+  ): Promise<unknown> {
+    return this.request("/events/getWateringSummaryByInterval", {
+      method: "PUT",
+      body: {
+        device_id: deviceId,
+        start_date: startDate,
+        end_date: endDate,
+      },
+      base: "cloud",
+    });
+  }
+
+  async deleteSchedule(scheduleId: string): Promise<unknown> {
+    return this.request(`/schedule/deleteSchedule/${encodeURIComponent(scheduleId)}`, {
+      method: "DELETE",
+      base: "cloud",
+    });
+  }
+
   // ── Webhooks ──
 
   async createWebhook(deviceId: string, url: string, eventTypes: string[]): Promise<unknown> {
@@ -216,7 +387,7 @@ export class RachioClient {
   }
 
   async deleteWebhook(webhookId: string): Promise<unknown> {
-    return this.request(`/public/notification/webhook/${webhookId}`, {
+    return this.request(`/public/notification/webhook/${encodeURIComponent(webhookId)}`, {
       method: "DELETE",
     });
   }

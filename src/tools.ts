@@ -168,19 +168,23 @@ export function registerTools(server: McpServer, client: RachioClient) {
 
   server.tool(
     "rain_delay",
-    "Pause all watering for a specified number of days (1-7)",
+    "Set or cancel a rain delay. To set: provide a future ISO 8601 expiration timestamp. To cancel: provide a past timestamp or the current time.",
     {
       device_id: z.string().describe("Rachio device ID"),
-      duration_days: z.number().int().min(1).max(7).describe("Number of days to delay (1-7)"),
+      rain_delay_expiration: z.string().describe("ISO 8601 timestamp for when the delay expires (e.g. '2026-04-09T12:00:00.000Z'). Use a past time to cancel."),
       confirm: z.boolean().describe("Must be true to execute"),
     },
-    async ({ device_id, duration_days, confirm }) => {
+    async ({ device_id, rain_delay_expiration, confirm }) => {
+      const expDate = new Date(rain_delay_expiration);
+      const isCanceling = expDate <= new Date();
       const guard = confirmationGuard(
-        `set a ${duration_days}-day rain delay on device ${device_id}`,
+        isCanceling
+          ? `cancel rain delay on device ${device_id}`
+          : `set rain delay on device ${device_id} until ${rain_delay_expiration}`,
         confirm
       );
       if (guard) return guard;
-      return json(await client.rainDelay(device_id, duration_days));
+      return json(await client.rainDelay(device_id, rain_delay_expiration));
     }
   );
 
@@ -227,6 +231,261 @@ export function registerTools(server: McpServer, client: RachioClient) {
       const guard = confirmationGuard(`start schedule ${schedule_id}`, confirm);
       if (guard) return guard;
       return json(await client.startSchedule(schedule_id));
+    }
+  );
+
+  server.tool(
+    "seasonal_adjustment",
+    "Adjust the seasonal watering percentage for a schedule (e.g. 0.8 = 80% of normal runtime)",
+    {
+      schedule_id: z.string().describe("Rachio schedule ID"),
+      adjustment: z.number().min(0).max(2).describe("Seasonal adjustment multiplier (0.0-2.0, where 1.0 = 100% normal)"),
+      confirm: z.boolean().describe("Must be true to execute"),
+    },
+    async ({ schedule_id, adjustment, confirm }) => {
+      const guard = confirmationGuard(
+        `set seasonal adjustment to ${(adjustment * 100).toFixed(0)}% on schedule ${schedule_id}`,
+        confirm
+      );
+      if (guard) return guard;
+      return json(await client.seasonalAdjustment(schedule_id, adjustment));
+    }
+  );
+
+  server.tool(
+    "skip_forward_zone_run",
+    "Skip the currently running zone and advance to the next zone in the schedule",
+    {
+      schedule_id: z.string().describe("Rachio schedule ID"),
+      confirm: z.boolean().describe("Must be true to execute"),
+    },
+    async ({ schedule_id, confirm }) => {
+      const guard = confirmationGuard(`skip forward to next zone in schedule ${schedule_id}`, confirm);
+      if (guard) return guard;
+      return json(await client.skipForwardZoneRun(schedule_id));
+    }
+  );
+
+  // ── Zone Settings (cloud-rest API) ──
+
+  server.tool(
+    "update_zone",
+    "Update zone settings: name, enabled state, soil type, crop type, nozzle type, sun exposure, and slope. Only include fields you want to change.",
+    {
+      zone_id: z.string().describe("Rachio zone ID"),
+      name: z.string().optional().describe("Zone name"),
+      enabled: z.boolean().optional().describe("Enable or disable the zone"),
+      soil_type: z.string().optional().describe("Soil type (known values: CLAY, CLAY_LOAM, LOAM, SANDY_LOAM, SAND, SILTY_LOAM)"),
+      crop_type: z.string().optional().describe("Vegetation/crop type (known values: COOL_SEASON_GRASS, WARM_SEASON_GRASS, FLOWER_BEDS, SHRUBS, TREES, XERISCAPE, ANNUALS, GROUND_COVER)"),
+      nozzle_type: z.string().optional().describe("Sprinkler nozzle type (known values: FIXED_SPRAY_HEAD, ROTOR_HEAD, ROTARY_NOZZLE, BUBBLER, DRIPLINE, DRIP_EMITTER)"),
+      exposure_type: z.string().optional().describe("Sun exposure (known values: LOTS_OF_SUN, SOME_SHADE, LOTS_OF_SHADE)"),
+      slope_type: z.string().optional().describe("Ground slope (known values: ZERO_THREE, FOUR_SIX, SEVEN_TWELVE, THIRTEEN_PLUS)"),
+      confirm: z.boolean().describe("Must be true to execute"),
+    },
+    async ({ zone_id, name, enabled, soil_type, crop_type, nozzle_type, exposure_type, slope_type, confirm }) => {
+      const changes = [name && "name", enabled !== undefined && "enabled", soil_type && "soil_type", crop_type && "crop_type", nozzle_type && "nozzle_type", exposure_type && "exposure_type", slope_type && "slope_type"].filter(Boolean);
+      const guard = confirmationGuard(
+        `update zone ${zone_id} (changing: ${changes.join(", ")})`,
+        confirm
+      );
+      if (guard) return guard;
+      return json(await client.updateZone(zone_id, {
+        name, enabled, soil_type, crop_type, nozzle_type, exposure_type, slope_type,
+      }));
+    }
+  );
+
+  // ── Location/Weather Thresholds (cloud-rest API) ──
+
+  server.tool(
+    "update_location_threshold",
+    "Update a weather threshold for skip conditions (wind speed, freeze temp, rain amount). Requires a location_id which can be found via get_device.",
+    {
+      location_id: z.string().describe("Location ID (from device data)"),
+      name: z.string().describe("Threshold type (known values: IRRIGATION_CONTROLLER_WIND (mph), IRRIGATION_CONTROLLER_TEMPERATURE (°F), IRRIGATION_CONTROLLER_PRECIPITATION (inches))"),
+      value: z.number().describe("Threshold value (e.g. 10 for 10 mph wind, 32 for 32°F freeze, 0.1 for 0.1\" rain)"),
+      confirm: z.boolean().describe("Must be true to execute"),
+    },
+    async ({ location_id, name, value, confirm }) => {
+      const guard = confirmationGuard(`set ${name} threshold to ${value} for location ${location_id}`, confirm);
+      if (guard) return guard;
+      return json(await client.updateLocationThreshold(location_id, name, value));
+    }
+  );
+
+  // ── Device Control (cloud-rest API) ──
+
+  server.tool(
+    "set_device_standby",
+    "Put the device into standby mode (all watering paused) or take it out of standby",
+    {
+      device_id: z.string().describe("Rachio device ID"),
+      standby: z.boolean().describe("true = standby (off), false = active (on)"),
+      confirm: z.boolean().describe("Must be true to execute"),
+    },
+    async ({ device_id, standby, confirm }) => {
+      const guard = confirmationGuard(
+        `set device ${device_id} to ${standby ? "standby (off)" : "active (on)"}`,
+        confirm
+      );
+      if (guard) return guard;
+      return json(await client.setDeviceStandby(device_id, standby));
+    }
+  );
+
+  // ── Watering History (cloud-rest API) ──
+
+  server.tool(
+    "get_watering_summary",
+    "Get watering history summary for a specific zone over a date range. Returns total runtime, water usage, and event breakdown.",
+    {
+      device_id: z.string().describe("Rachio device ID"),
+      zone_id: z.string().describe("Rachio zone ID"),
+      start_date: z.object({
+        year: z.number().int(),
+        month: z.number().int().min(1).max(12),
+        day: z.number().int().min(1).max(31),
+      }).describe("Start date"),
+      end_date: z.object({
+        year: z.number().int(),
+        month: z.number().int().min(1).max(12),
+        day: z.number().int().min(1).max(31),
+      }).describe("End date"),
+    },
+    async ({ device_id, zone_id, start_date, end_date }) =>
+      json(await client.getWateringSummary(device_id, zone_id, start_date, end_date))
+  );
+
+  server.tool(
+    "get_watering_summary_by_interval",
+    "Get device-level watering history summary broken down by time intervals over a date range. Useful for tracking total water usage trends.",
+    {
+      device_id: z.string().describe("Rachio device ID"),
+      start_date: z.object({
+        year: z.number().int(),
+        month: z.number().int().min(1).max(12),
+        day: z.number().int().min(1).max(31),
+      }).describe("Start date"),
+      end_date: z.object({
+        year: z.number().int(),
+        month: z.number().int().min(1).max(12),
+        day: z.number().int().min(1).max(31),
+      }).describe("End date"),
+    },
+    async ({ device_id, start_date, end_date }) =>
+      json(await client.getWateringSummaryByInterval(device_id, start_date, end_date))
+  );
+
+  // ── Schedule Creation (cloud-rest API) ──
+
+  const scheduleCriteriaSchema = z.object({
+    schedule_type: z.enum(["FLEX_DAILY", "FIXED", "INTERVAL"]).describe("Schedule type"),
+    rain_delay_enabled: z.boolean().default(false),
+    freeze_delay_enabled: z.boolean().default(true),
+    wind_delay_enabled: z.boolean().default(true),
+    climate_skip: z.boolean().default(false),
+    seasonal_shift: z.boolean().default(false),
+    start_date: z.object({
+      year: z.number().int(),
+      month: z.number().int().min(1).max(12),
+      day: z.number().int().min(1).max(31),
+    }).describe("Schedule start date"),
+    start_sun_time: z.enum(["SUNRISE", "SUNSET"]).optional().describe("Start relative to sun (use this OR start_time)"),
+    start_time: z.number().int().optional().describe("Start time in minutes from midnight (use this OR start_sun_time)"),
+    cycle_soak: z.boolean().default(false),
+    smart_cycle: z.boolean().default(true),
+    zone_delay_time: z.number().int().default(0).describe("Delay between zones in seconds"),
+  });
+
+  const zoneInfoSchema = z.object({
+    device_id: z.string().describe("Rachio device ID"),
+    zone_id: z.string().describe("Rachio zone ID"),
+    order_id: z.number().int().describe("Zone order in sequence (0-based)"),
+    watering_time: z.number().int().min(0).describe("Watering duration in seconds (0 for flex auto-calculation)"),
+    flex_aggression_coefficient: z.number().default(1).describe("Flex aggression multiplier (1.0 = normal)"),
+    flex_runtime_coefficient: z.number().default(1).describe("Flex runtime multiplier (1.0 = normal)"),
+  });
+
+  server.tool(
+    "preview_schedule",
+    "Preview what a schedule would look like before creating it. Returns projected run times and water usage. Uses the cloud-rest API.",
+    {
+      name: z.string().describe("Schedule name"),
+      schedule_criteria: scheduleCriteriaSchema,
+      zone_info: z.array(zoneInfoSchema).describe("Zones to include in the schedule"),
+      schedule_restriction_criteria: z.record(z.unknown()).default({}).describe("Optional watering restrictions"),
+    },
+    async ({ name, schedule_criteria, zone_info, schedule_restriction_criteria }) => {
+      return json(await client.previewSchedule({
+        name,
+        schedule_criteria,
+        zone_info,
+        schedule_restriction_criteria,
+      }));
+    }
+  );
+
+  server.tool(
+    "create_schedule",
+    "Create a new watering schedule. Use preview_schedule first to verify settings. Uses the cloud-rest API (undocumented, reverse-engineered from app).",
+    {
+      name: z.string().describe("Schedule name"),
+      enabled: z.boolean().describe("Whether the schedule is active"),
+      schedule_criteria: scheduleCriteriaSchema,
+      zone_info: z.array(zoneInfoSchema).describe("Zones to include in the schedule"),
+      schedule_restriction_criteria: z.record(z.unknown()).default({}).describe("Optional watering restrictions"),
+      confirm: z.boolean().describe("Must be true to execute"),
+    },
+    async ({ name, enabled, schedule_criteria, zone_info, schedule_restriction_criteria, confirm }) => {
+      const guard = confirmationGuard(`create schedule "${name}" with ${zone_info.length} zones`, confirm);
+      if (guard) return guard;
+      return json(await client.createSchedule({
+        name,
+        enabled,
+        schedule_criteria,
+        zone_info,
+        schedule_restriction_criteria,
+      }));
+    }
+  );
+
+  server.tool(
+    "update_schedule",
+    "Update an existing schedule. Can modify name, zones, criteria, and enabled state. Uses the cloud-rest API.",
+    {
+      schedule_id: z.string().describe("ID of the schedule to update"),
+      name: z.string().describe("Schedule name"),
+      enabled: z.boolean().describe("Whether the schedule is active"),
+      schedule_criteria: scheduleCriteriaSchema,
+      zone_info: z.array(zoneInfoSchema).describe("Zones to add or update in the schedule"),
+      zone_ids_to_remove: z.array(z.string()).default([]).describe("Zone IDs to remove from the schedule"),
+      schedule_restriction_criteria: z.record(z.unknown()).default({}).describe("Optional watering restrictions"),
+      confirm: z.boolean().describe("Must be true to execute"),
+    },
+    async ({ schedule_id, name, enabled, schedule_criteria, zone_info, zone_ids_to_remove, schedule_restriction_criteria, confirm }) => {
+      const guard = confirmationGuard(`update schedule "${name}" (${schedule_id})`, confirm);
+      if (guard) return guard;
+      return json(await client.updateSchedule(schedule_id, {
+        name,
+        enabled,
+        schedule_criteria,
+        zone_info,
+        schedule_restriction_criteria,
+      }, zone_ids_to_remove));
+    }
+  );
+
+  server.tool(
+    "delete_schedule",
+    "Delete a schedule permanently. Uses the cloud-rest API.",
+    {
+      schedule_id: z.string().describe("ID of the schedule to delete"),
+      confirm: z.boolean().describe("Must be true to execute"),
+    },
+    async ({ schedule_id, confirm }) => {
+      const guard = confirmationGuard(`permanently delete schedule ${schedule_id}`, confirm);
+      if (guard) return guard;
+      return json(await client.deleteSchedule(schedule_id));
     }
   );
 

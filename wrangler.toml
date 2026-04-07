@@ -1,0 +1,25 @@
+name = "rachio-mcp"
+main = "src/index.ts"
+compatibility_date = "2025-03-15"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+RACHIO_API_BASE = "https://api.rach.io/1"
+RACHIO_CLOUD_BASE = "https://cloud-rest.rach.io"
+MAX_DAILY_CALLS = 1500
+MAX_ZONE_DURATION = 10800
+
+# Secrets (set via `wrangler secret put`):
+#   RACHIO_API_KEY         - Rachio API bearer token
+#   URL_SECRET             - 64-char hex string for endpoint auth
+#   CF_ACCESS_CLIENT_ID    - Cloudflare Access service token client ID (optional Layer 2)
+#   CF_ACCESS_CLIENT_SECRET - Cloudflare Access service token client secret (optional Layer 2)
+
+[durable_objects]
+bindings = [
+  { name = "RATE_LIMITER", class_name = "RateLimiter" }
+]
+
+[[migrations]]
+tag = "v1"
+new_classes = ["RateLimiter"]

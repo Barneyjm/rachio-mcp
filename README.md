@@ -15,37 +15,36 @@ A Cloudflare Worker that exposes the [Rachio](https://rachio.com) irrigation API
 
 ### Prerequisites
 
-- [Wrangler CLI](https://developers.cloudflare.com/workers/wrangler/install-and-update/)
 - A Rachio API key from [rachio.com/api](https://rachio.com/api)
+- A Cloudflare account with Workers enabled
 
-### 1. Install dependencies
+### 1. Add GitHub repository secrets
+
+| Secret | Description |
+|--------|-------------|
+| `CLOUDFLARE_API_TOKEN` | Cloudflare API token with Workers permissions |
+| `CLOUDFLARE_ACCOUNT_ID` | Your Cloudflare account ID |
+| `RACHIO_API_KEY` | Rachio API bearer token |
+| `RACHIO_MCP_URL_SECRET` | 64-char hex string (`openssl rand -hex 32`) |
+| `CF_ACCESS_CLIENT_ID` | _(optional)_ Cloudflare Access service token client ID |
+| `CF_ACCESS_CLIENT_SECRET` | _(optional)_ Cloudflare Access service token client secret |
+
+### 2. Run the Setup workflow
+
+Go to **Actions > Setup Infrastructure > Run workflow**. This will:
+- Create the `RATE_LIMIT` KV namespace
+- Push all secrets to the Cloudflare Worker
+
+After it runs, copy the KV namespace ID from the workflow logs into `wrangler.toml` and uncomment the `[[kv_namespaces]]` block.
+
+### 3. Deploy
+
+Push to `main` — the **Deploy** workflow runs automatically (typecheck + `wrangler deploy`).
+
+Or run manually:
 
 ```bash
 npm install
-```
-
-### 2. Configure secrets
-
-```bash
-# Required
-wrangler secret put RACHIO_API_KEY
-wrangler secret put URL_SECRET          # generate: openssl rand -hex 32
-
-# Optional (Layer 2 auth)
-wrangler secret put CF_ACCESS_CLIENT_ID
-wrangler secret put CF_ACCESS_CLIENT_SECRET
-```
-
-### 3. Set up rate limiting (optional)
-
-```bash
-wrangler kv namespace create RATE_LIMIT
-# Copy the ID into wrangler.toml and uncomment the [[kv_namespaces]] block
-```
-
-### 4. Deploy
-
-```bash
 npm run deploy
 ```
 

@@ -262,6 +262,26 @@ export function registerTools(server: McpServer, client: RachioClient) {
     }
   );
 
+  // ── Device Control (cloud-rest API) ──
+
+  server.tool(
+    "set_device_standby",
+    "Put the device into standby mode (all watering paused) or take it out of standby",
+    {
+      device_id: z.string().describe("Rachio device ID"),
+      standby: z.boolean().describe("true = standby (off), false = active (on)"),
+      confirm: z.boolean().describe("Must be true to execute"),
+    },
+    async ({ device_id, standby, confirm }) => {
+      const guard = confirmationGuard(
+        `set device ${device_id} to ${standby ? "standby (off)" : "active (on)"}`,
+        confirm
+      );
+      if (guard) return guard;
+      return json(await client.setDeviceStandby(device_id, standby));
+    }
+  );
+
   // ── Watering History (cloud-rest API) ──
 
   server.tool(

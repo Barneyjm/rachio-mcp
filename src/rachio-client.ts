@@ -284,6 +284,14 @@ export class RachioClient {
     });
   }
 
+  async setDeviceStandby(deviceId: string, standby: boolean): Promise<unknown> {
+    return this.request("/device/updateIrrigationController", {
+      method: "PUT",
+      body: { id: deviceId, standby },
+      base: "cloud",
+    });
+  }
+
   async getWateringSummary(
     deviceId: string,
     zoneId: string,

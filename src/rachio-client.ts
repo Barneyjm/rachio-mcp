@@ -325,6 +325,22 @@ export class RachioClient {
     });
   }
 
+  async getWateringSummaryByInterval(
+    deviceId: string,
+    startDate: { year: number; month: number; day: number },
+    endDate: { year: number; month: number; day: number }
+  ): Promise<unknown> {
+    return this.request("/events/getWateringSummaryByInterval", {
+      method: "PUT",
+      body: {
+        device_id: deviceId,
+        start_date: startDate,
+        end_date: endDate,
+      },
+      base: "cloud",
+    });
+  }
+
   async deleteSchedule(scheduleId: string): Promise<unknown> {
     return this.request(`/schedule/deleteSchedule/${scheduleId}`, {
       method: "DELETE",

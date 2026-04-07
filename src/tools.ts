@@ -331,6 +331,26 @@ export function registerTools(server: McpServer, client: RachioClient) {
       json(await client.getWateringSummary(device_id, zone_id, start_date, end_date))
   );
 
+  server.tool(
+    "get_watering_summary_by_interval",
+    "Get device-level watering history summary broken down by time intervals over a date range. Useful for tracking total water usage trends.",
+    {
+      device_id: z.string().describe("Rachio device ID"),
+      start_date: z.object({
+        year: z.number().int(),
+        month: z.number().int().min(1).max(12),
+        day: z.number().int().min(1).max(31),
+      }).describe("Start date"),
+      end_date: z.object({
+        year: z.number().int(),
+        month: z.number().int().min(1).max(12),
+        day: z.number().int().min(1).max(31),
+      }).describe("End date"),
+    },
+    async ({ device_id, start_date, end_date }) =>
+      json(await client.getWateringSummaryByInterval(device_id, start_date, end_date))
+  );
+
   // ── Schedule Creation (cloud-rest API) ──
 
   const scheduleCriteriaSchema = z.object({

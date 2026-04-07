@@ -284,6 +284,24 @@ export class RachioClient {
     });
   }
 
+  async getWateringSummary(
+    deviceId: string,
+    zoneId: string,
+    startDate: { year: number; month: number; day: number },
+    endDate: { year: number; month: number; day: number }
+  ): Promise<unknown> {
+    return this.request("/events/getWateringSummaryForZone", {
+      method: "PUT",
+      body: {
+        device_id: deviceId,
+        zone_id: zoneId,
+        start_date: startDate,
+        end_date: endDate,
+      },
+      base: "cloud",
+    });
+  }
+
   async deleteSchedule(scheduleId: string): Promise<unknown> {
     return this.request(`/schedule/deleteSchedule/${scheduleId}`, {
       method: "DELETE",

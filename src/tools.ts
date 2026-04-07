@@ -23,14 +23,17 @@ function confirmationGuard(action: string, confirm: boolean | undefined): ToolRe
 export function registerTools(server: McpServer, client: RachioClient) {
   // ── Read-Only Tools ──
 
-  server.tool("get_person", "Get authenticated user profile and device IDs", {}, async () => {
-    return json(await client.getPerson());
-  });
+  server.tool(
+    "get_person",
+    "Get authenticated user profile, including the devices array. Call this first to discover device IDs. Each device contains zone and schedule summaries. Use a device ID (not the person ID) with other tools.",
+    {},
+    async () => json(await client.getPerson())
+  );
 
   server.tool(
     "get_device",
-    "Get full device details including zones, schedules, and status",
-    { device_id: z.string().describe("Rachio device ID") },
+    "Get full device details including zones, schedules, and status. Requires a device ID from get_person (found in the devices array, NOT the top-level person id).",
+    { device_id: z.string().describe("Rachio device ID (from get_person devices[].id)") },
     async ({ device_id }) => json(await client.getDevice(device_id))
   );
 
